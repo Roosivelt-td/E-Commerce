@@ -70,7 +70,8 @@ cd E-Commerce
 ## 2. Crear entorno virtual
 
 ```bash
-python -m venv .venv
+python -m venv .venv 
+python3 -m venv .venv #si no funciona con python -m venv .venv  
 source .venv/bin/activate
 ```
 
@@ -84,6 +85,11 @@ pip install -r requirements.txt
 
 # Ejecución del Servidor
 
+Ejecutar el proyecto web:
+
+```
+python servidor.py
+```
 El proyecto web debe ejecutarse en el puerto:
 
 ```
@@ -99,13 +105,21 @@ python app.py
 ---
 
 # Configuración de Selenium Grid con Docker
-
 ## Iniciar contenedores
+#### Abrir otro terminal y ejecutar
+Verificar instalación de DOCKER para instalarlo 
+```bash
+docker --version
+```
 
 ```bash
 docker compose up -d
 ```
-
+ ó con esto
+```bash
+docker-compose up
+```
+si no funciona: implementar --> sudo
 ## Verificar contenedores
 
 ```bash
@@ -212,6 +226,11 @@ Objetivo:
 
 # Ejecución de Pruebas
 
+Ejecutar en otra terminal:
+
+```bash
+source .venv/bin/activate
+```
 Ejecutar todas las pruebas:
 
 ```bash
