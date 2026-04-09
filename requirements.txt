@@ -1,0 +1,16 @@
+# requirements.txt
+# Dependencias del proyecto E-Commerce Automation
+
+# Automatización de navegadores
+selenium>=4.15.0
+
+# Framework de pruebas
+pytest>=9.0.0
+pytest-html>=4.2.0      # Reportes HTML
+pytest-xdist>=3.8.0     # Ejecución en paralelo
+
+# Manejo automático de drivers
+webdriver-manager>=4.0.0
+
+# Servidor para el E-Commerce demo
+flask>=3.0.0

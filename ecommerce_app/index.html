@@ -1,0 +1,263 @@
+    <!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Commerce Real-Time</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; }
+        
+        /* Header */
+        .header { background: #2c3e50; color: white; padding: 1rem; text-align: center; }
+        .header h1 { margin-bottom: 0.5rem; }
+        .session-info { font-size: 0.9rem; opacity: 0.9; }
+        
+        /* Contenedor principal */
+        .container { max-width: 1200px; margin: 2rem auto; display: flex; gap: 2rem; padding: 0 1rem; }
+        
+        /* Tienda (Storefront) */
+        .store { flex: 2; background: white; border-radius: 10px; padding: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .producto { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
+        .producto-info h3 { margin-bottom: 0.5rem; color: #2c3e50; }
+        .precio { color: #27ae60; font-weight: bold; font-size: 1.2rem; }
+        .stock { font-size: 0.9rem; color: #7f8c8d; margin-top: 0.3rem; }
+        .stock.disponible { color: #27ae60; }
+        .stock.agotado { color: #e74c3c; font-weight: bold; }
+        .btn-comprar { background: #3498db; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 5px; cursor: pointer; transition: background 0.3s; }
+        .btn-comprar:hover:not(:disabled) { background: #2980b9; }
+        .btn-comprar:disabled { background: #95a5a6; cursor: not-allowed; }
+        .btn-sin-stock { background: #e74c3c; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 5px; cursor: not-allowed; }
+        
+        /* Panel Admin */
+        .admin { flex: 1; background: white; border-radius: 10px; padding: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .admin h2 { margin-bottom: 1rem; color: #2c3e50; }
+        .admin-section { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #eee; }
+        .admin-section h3 { margin-bottom: 0.5rem; font-size: 1rem; color: #7f8c8d; }
+        input, button { padding: 0.5rem; margin: 0.3rem 0; }
+        button { background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #2980b9; }
+        .csv-input { margin: 0.5rem 0; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #27ae60; color: white; padding: 1rem; border-radius: 5px; display: none; z-index: 1000; animation: slideIn 0.3s; }
+        .toast.error { background: #e74c3c; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        
+        /* Tabla de productos (Admin) */
+        .tabla-productos { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+        .tabla-productos th, .tabla-productos td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #ddd; }
+        .tabla-productos th { background: #ecf0f1; }
+        .editar-stock { background: #f39c12; margin-left: 0.5rem; padding: 0.2rem 0.5rem; font-size: 0.8rem; }
+        .editar-stock:hover { background: #e67e22; }
+        
+        @media (max-width: 768px) { .container { flex-direction: column; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛒 E-Commerce Real-Time</h1>
+        <div class="session-info">Sesión ID: <span id="sessionId">Cargando...</span></div>
+        <div style="font-size: 0.8rem; margin-top: 0.5rem;">⚠️ Los cambios en Admin se reflejan en Tienda AUTOMÁTICAMENTE</div>
+    </div>
+    
+    <div class="container">
+        <!-- TIENDA (Cliente) -->
+        <div class="store">
+            <h2>🏪 Tienda</h2>
+            <div id="productos-lista">Cargando productos...</div>
+        </div>
+        
+        <!-- PANEL ADMIN -->
+        <div class="admin">
+            <h2>🔧 Panel Admin</h2>
+            
+            <div class="admin-section">
+                <h3>📦 Carga Masiva CSV</h3>
+                <input type="file" id="csvFile" accept=".csv" class="csv-input">
+                <button onclick="cargarCSV()">Cargar Productos</button>
+                <div style="font-size: 0.8rem; margin-top: 0.5rem;">Formato: nombre,precio,stock</div>
+            </div>
+            
+            <div class="admin-section">
+                <h3>📊 Inventario Actual</h3>
+                <table class="tabla-productos" id="tabla-inventario">
+                    <thead>
+                        <tr><th>Producto</th><th>Stock</th><th>Acción</th></tr>
+                    </thead>
+                    <tbody id="inventario-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast" class="toast"></div>
+    
+    <script>
+        // --- Estado inicial de productos ---
+        let productos = [
+            { id: 1, nombre: "Laptop Gamer", precio: 1200, stock: 3 },
+            { id: 2, nombre: "Mouse Inalámbrico", precio: 45, stock: 5 },
+            { id: 3, nombre: "Teclado Mecánico", precio: 89, stock: 2 },
+            { id: 4, nombre: "Monitor 24\"", precio: 250, stock: 0 }
+        ];
+        
+        // Generar ID de sesión único
+        let sessionId = localStorage.getItem('sessionId');
+        if (!sessionId) {
+            sessionId = 'sesion_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('sessionId', sessionId);
+        }
+        document.getElementById('sessionId').textContent = sessionId;
+        
+        // --- Funciones auxiliares ---
+        function mostrarToast(mensaje, esError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = mensaje;
+            toast.className = esError ? 'toast error' : 'toast';
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+        
+        // --- Renderizar TIENDA (con Regla de Oro #1: stock 0 = botón deshabilitado)---
+        function renderizarTienda() {
+            const contenedor = document.getElementById('productos-lista');
+            if (!contenedor) return;
+            
+            if (productos.length === 0) {
+                contenedor.innerHTML = '<p>No hay productos disponibles</p>';
+                return;
+            }
+            
+            contenedor.innerHTML = productos.map(p => `
+                <div class="producto" data-id="${p.id}">
+                    <div class="producto-info">
+                        <h3>${p.nombre}</h3>
+                        <div class="precio">$${p.precio}</div>
+                        <div class="stock ${p.stock > 0 ? 'disponible' : 'agotado'}">
+                            ${p.stock > 0 ? `📦 Stock: ${p.stock} unidades` : '❌ AGOTADO'}
+                        </div>
+                    </div>
+                    <div>
+                        ${p.stock > 0 
+                            ? `<button class="btn-comprar" onclick="comprarProducto(${p.id})">🛒 Añadir al Carrito</button>`
+                            : `<button class="btn-sin-stock" disabled>⛔ Sin Stock</button>`
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // --- Renderizar ADMIN (tabla de inventario)---
+        function renderizarAdmin() {
+            const tbody = document.getElementById('inventario-body');
+            if (!tbody) return;
+            
+            tbody.innerHTML = productos.map(p => `
+                <tr>
+                    <td>${p.nombre}</td>
+                    <td id="stock-${p.id}">${p.stock}</td>
+                    <td>
+                        <button class="editar-stock" onclick="editarStock(${p.id})">✏️ Editar</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        // --- Comprar producto (disminuye stock en tiempo real)---
+        function comprarProducto(id) {
+            const producto = productos.find(p => p.id === id);
+            if (!producto || producto.stock <= 0) {
+                mostrarToast(`❌ ${producto?.nombre || 'Producto'} sin stock`, true);
+                return;
+            }
+            
+            // Disminuir stock
+            producto.stock--;
+            
+            // Actualizar UI
+            actualizarInterfazCompleta();
+            mostrarToast(`✅ Comprado: ${producto.nombre} - Stock restante: ${producto.stock}`);
+            
+            // Si llegó a 0, mostrar alerta especial
+            if (producto.stock === 0) {
+                mostrarToast(`⚠️ ¡${producto.nombre} se ha AGOTADO!`, true);
+            }
+        }
+        
+        // --- Editar stock desde Admin---
+        function editarStock(id) {
+            const producto = productos.find(p => p.id === id);
+            if (!producto) return;
+            
+            const nuevoStock = prompt(`Editar stock de "${producto.nombre}"`, producto.stock);
+            if (nuevoStock !== null && !isNaN(nuevoStock) && nuevoStock >= 0) {
+                producto.stock = parseInt(nuevoStock);
+                actualizarInterfazCompleta();
+                mostrarToast(`✅ Stock actualizado: ${producto.nombre} → ${producto.stock} unidades`);
+            }
+        }
+        
+        // --- Carga masiva CSV---
+        function cargarCSV() {
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                mostrarToast("❌ Selecciona un archivo CSV", true);
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const contenido = e.target.result;
+                const lineas = contenido.split('\n');
+                const nuevosProductos = [];
+                
+                for (let i = 1; i < lineas.length; i++) { // Saltar cabecera
+                    const partes = lineas[i].split(',');
+                    if (partes.length >= 3 && partes[0].trim()) {
+                        const nuevoId = productos.length + nuevosProductos.length + 1;
+                        nuevosProductos.push({
+                            id: nuevoId,
+                            nombre: partes[0].trim(),
+                            precio: parseFloat(partes[1]),
+                            stock: parseInt(partes[2])
+                        });
+                    }
+                }
+                
+                if (nuevosProductos.length > 0) {
+                    productos.push(...nuevosProductos);
+                    actualizarInterfazCompleta();
+                    mostrarToast(`✅ Cargados ${nuevosProductos.length} productos desde CSV`);
+                } else {
+                    mostrarToast("❌ CSV vacío o formato inválido", true);
+                }
+                
+                fileInput.value = '';
+            };
+            reader.readAsText(file);
+        }
+        
+        // --- Actualizar TODO (tienda + admin)---
+        function actualizarInterfazCompleta() {
+            renderizarTienda();
+            renderizarAdmin();
+        }
+        
+        // --- Simular actualización en tiempo real (AJAX)---
+        // En una app real, aquí habría WebSockets. Simulamos con polling cada 500ms
+        let ultimoEstado = JSON.stringify(productos);
+        setInterval(() => {
+            const estadoActual = JSON.stringify(productos);
+            if (estadoActual !== ultimoEstado) {
+                ultimoEstado = estadoActual;
+                renderizarTienda(); // Solo actualizar tienda (cambios en tiempo real)
+            }
+        }, 500);
+        
+        // --- Inicializar---
+        actualizarInterfazCompleta();
+        mostrarToast("🚀 Sistema listo - Los cambios en Admin se reflejan en TIEMPO REAL");
+    </script>
+</body>
+</html>
